@@ -4650,7 +4650,15 @@ func (o *Object) uploadSinglepartPutObject(ctx context.Context, req *s3.PutObjec
 	}
 	req.Body = io.NopCloser(in)
 	var options = []func(*s3.Options){}
-	if o.fs.opt.UseUnsignedPayload.Value {
+	// SigV4 full payload hash requires a seekable body. Use unsigned payload when
+	// configured, or automatically when the reader is not seekable (e.g. fs/accounting async reader).
+	useUnsigned := o.fs.opt.UseUnsignedPayload.Valid && o.fs.opt.UseUnsignedPayload.Value
+	if !useUnsigned {
+		if _, ok := in.(io.ReadSeeker); !ok {
+			useUnsigned = true
+		}
+	}
+	if useUnsigned {
 		options = append(options, s3.WithAPIOptions(
 			// avoids operation error S3: PutObject, failed to compute payload hash: failed to seek body to start, request stream is not seekable
 			v4signer.SwapComputePayloadSHA256ForUnsignedPayloadMiddleware,
