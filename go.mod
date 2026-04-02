@@ -43,6 +43,7 @@ require (
 	github.com/go-darwin/apfs v0.0.0-20211011131704-f84b94dbf348
 	github.com/go-git/go-billy/v5 v5.7.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/golang/snappy v1.0.0
 	github.com/google/uuid v1.6.0
 	github.com/hanwen/go-fuse/v2 v2.9.0
 	github.com/internxt/rclone-adapter v0.0.0-20260220172730-613f4cc8b8fd
@@ -51,6 +52,7 @@ require (
 	github.com/josephspurrier/goversioninfo v1.5.0
 	github.com/jzelinskie/whirlpool v0.0.0-20201016144138-0675e54bb004
 	github.com/klauspost/compress v1.18.4
+	github.com/klauspost/reedsolomon v1.13.3
 	github.com/koofr/go-httpclient v0.0.0-20240520111329-e20f8f203988
 	github.com/koofr/go-koofrclient v0.0.0-20221207135200-cbd7fc9ad6a6
 	github.com/lanrat/extsort v1.4.2
@@ -181,7 +183,6 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.12 // indirect
