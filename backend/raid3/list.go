@@ -119,7 +119,10 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 			fs.Debugf(f, "List: Skipping temp file %s", remote)
 			continue
 		}
-		entryMap[remote] = entry
+		// Dedup using NFD because macOS local backend often returns NFD.
+		// We later emit using NFC to match fstest.Normalize.
+		key := norm.NFD.String(remote)
+		entryMap[key] = entry
 	}
 
 	// Add odd entries (merge with even, filter out temporary files)
@@ -130,8 +133,9 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 			fs.Debugf(f, "List: Skipping temp file %s", remote)
 			continue
 		}
-		if _, exists := entryMap[remote]; !exists {
-			entryMap[remote] = entry
+		key := norm.NFD.String(remote)
+		if _, exists := entryMap[key]; !exists {
+			entryMap[key] = entry
 		}
 	}
 
@@ -141,14 +145,16 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 			fs.Debugf(f, "List: Skipping temp file %s", remote)
 			continue
 		}
-		if _, exists := entryMap[remote]; !exists {
-			entryMap[remote] = entry
+		key := norm.NFD.String(remote)
+		if _, exists := entryMap[key]; !exists {
+			entryMap[key] = entry
 		}
 	}
 
 	// Convert map back to slice
 	entries = make(fs.DirEntries, 0, len(entryMap))
-	for _, entry := range entryMap {
+	for key, entry := range entryMap {
+		outRemote := norm.NFC.String(key)
 		switch e := entry.(type) {
 		case fs.Object:
 			// If auto_cleanup is enabled, handle broken objects (< 2 particles)
@@ -176,12 +182,12 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 			}
 			entries = append(entries, &Object{
 				fs:     f,
-				remote: e.Remote(),
+				remote: outRemote,
 			})
 		case fs.Directory:
 			entries = append(entries, &Directory{
 				fs:     f,
-				remote: e.Remote(),
+				remote: outRemote,
 			})
 		}
 	}
@@ -198,6 +204,24 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 		f.reconstructMissingDirectory(ctx, dir, errEven, errOdd)
 	}
 
+	// Final safety net: ensure no duplicate entries are returned.
+	// This prevents duplicates that can appear after combining even/odd/parity results
+	// on macOS when filenames are represented in different Unicode normalization forms.
+	final := entries[:0]
+	seenFinal := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		kind := "obj"
+		if _, ok := entry.(*Directory); ok {
+			kind = "dir"
+		}
+		key := kind + ":" + norm.NFC.String(entry.Remote())
+		if _, exists := seenFinal[key]; exists {
+			continue
+		}
+		seenFinal[key] = struct{}{}
+		final = append(final, entry)
+	}
+	entries = final
 	return entries, nil
 }
 
@@ -427,6 +451,26 @@ func (f *Fs) ListR(ctx context.Context, dir string, callback fs.ListRCallback) (
 		}
 		mergedEntries = append(mergedEntries, converted)
 	}
+
+	// Final safety net: de-duplicate entries again after conversion.
+	// This guards against any remaining upstream duplicate emissions
+	// (e.g. directory entries that end up canonically equivalent after
+	// normalization).
+	finalEntries := mergedEntries[:0]
+	seenFinal := make(map[string]struct{}, len(mergedEntries))
+	for _, entry := range mergedEntries {
+		kind := "obj"
+		if _, ok := entry.(*Directory); ok {
+			kind = "dir"
+		}
+		key := kind + ":" + emitPath(entry.Remote())
+		if _, exists := seenFinal[key]; exists {
+			continue
+		}
+		seenFinal[key] = struct{}{}
+		finalEntries = append(finalEntries, entry)
+	}
+	mergedEntries = finalEntries
 	fs.Infof(f, "ListR(%q): converted %d objects, %d dirs, final count: %d", dir, objectCount, dirCount, len(mergedEntries))
 
 	// Call callback with merged entries

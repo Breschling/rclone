@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+#
+# TestRaid3Local - local-only raid3 (Reed-Solomon-like RAID 3) test environment for fstest/testserver.
+#
+# Provisions three local directories (even/odd/parity) for raid3 with k=2+m=1 behavior (RAID 3 stripes).
+# Outputs rclone config option values via environment variables consumed by rclone's config system.
+#
+set -euo pipefail
+
+RUN_BASE="${STATE_DIR:-${XDG_RUNTIME_DIR:-/tmp}/rclone-test-server}"
+NAME="$(basename "$0")"
+RUN_ROOT="${RUN_BASE}/${NAME}"
+
+start() {
+	# Ensure clean state in case previous runs were interrupted.
+	rm -rf "${RUN_ROOT}/even" "${RUN_ROOT}/odd" "${RUN_ROOT}/parity"
+	mkdir -p "${RUN_ROOT}/even" "${RUN_ROOT}/odd" "${RUN_ROOT}/parity"
+
+	# raid3 backend config values (see backend/raid3/raid3.go Options struct)
+	echo type=raid3
+	echo even="${RUN_ROOT}/even"
+	echo odd="${RUN_ROOT}/odd"
+	echo parity="${RUN_ROOT}/parity"
+
+	# Match backend/raid3/test/tests.config defaults used for localraid3.
+	echo timeout_mode=aggressive
+	echo auto_cleanup=true
+	echo auto_heal=false
+	echo rollback=true
+
+	# Explicitly set so behavior stays stable even if backend defaults change.
+	echo use_spooling=true
+}
+
+status() {
+	[[ -d "${RUN_ROOT}/even" && -d "${RUN_ROOT}/odd" && -d "${RUN_ROOT}/parity" ]]
+}
+
+stop() {
+	:
+}
+
+case "${1:-}" in
+start)
+	start
+	;;
+stop)
+	stop
+	;;
+status)
+	status
+	;;
+reset)
+	stop
+	rm -rf "${RUN_BASE}"
+	;;
+*)
+	echo "usage: $0 {start|stop|reset|status}" >&2
+	exit 2
+	;;
+esac
+

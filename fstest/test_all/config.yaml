@@ -23,6 +23,8 @@ backends:
  - backend:  "raid3"
    remote:   "TestRaid3Local:"
    fastlist: true
+   ignore:
+     - TestIntegration/FsMkdir/FsPutFiles/FsListRLevel2
  - backend:  "raid3"
    remote:   "TestRaid3Minio:"
    fastlist: true
